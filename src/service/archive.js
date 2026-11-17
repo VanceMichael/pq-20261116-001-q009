@@ -1,8 +1,10 @@
 import { openDatabase, closeDatabase } from "../store/database.js";
+import { randomUUID } from "node:crypto";
 import { FeedRepository } from "../store/feed-repository.js";
 import { CaptureRepository } from "../store/capture-repository.js";
 import { ArticleRepository } from "../store/article-repository.js";
 import { FetchRepository } from "../store/fetch-repository.js";
+import { RefreshRunRepository } from "../store/refresh-run-repository.js";
 import { ImportService } from "../ingest/import-service.js";
 import { PageFetcher } from "../acquisition/page-fetcher.js";
 import { RefreshService } from "./refresh-service.js";
@@ -23,6 +25,7 @@ export class NewsArchive {
     this.articles = new ArticleRepository(this.database);
     this.fetches = new FetchRepository(this.database);
     this.reviews = new ReviewRepository(this.database);
+    this.runs = new RefreshRunRepository(this.database);
     this.imports = new ImportService({
       database: this.database,
       feeds: this.feeds,
@@ -31,11 +34,16 @@ export class NewsArchive {
       clock: this.clock
     });
     this.refreshes = new RefreshService({
+      database: this.database,
       feeds: this.feeds,
       fetches: this.fetches,
+      runs: this.runs,
       fetcher: options.fetcher ?? new PageFetcher(),
       imports: this.imports,
-      clock: this.clock
+      clock: this.clock,
+      ownerId: options.ownerId ?? randomUUID(),
+      leaseTtlMs: options.leaseTtlMs,
+      pollIntervalMs: options.pollIntervalMs
     });
     this.changes = new ChangeReportService({ feeds: this.feeds, captures: this.captures, articles: this.articles });
     this.health = new HealthReportService({ feeds: this.feeds, fetches: this.fetches, clock: this.clock });
@@ -55,6 +63,11 @@ export class NewsArchive {
 
   refreshFeed(feedId) {
     return this.refreshes.refresh(feedId);
+  }
+
+  refreshStatus(feedId) {
+    if (!this.feeds.get(feedId)) return null;
+    return { feedId, current: this.refreshes.current(feedId) };
   }
 
   feedStatus(feedId) {

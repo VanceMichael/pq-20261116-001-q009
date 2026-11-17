@@ -22,6 +22,7 @@ npm run demo
 - `POST /v1/feeds`：注册来源，提交 `feedId`、`baseUrl`、`allowedHosts`，以及可选的 `minimumItems`、`missingThreshold`。
 - `POST /v1/feeds/:feedId/snapshots`：提交已保存的 HTML 页面；可用 `X-Captured-At` 指定采集时间。
 - `POST /v1/feeds/:feedId/refresh`：手动抓取已注册来源；仅访问允许列表中的 DNS 主机。
+- `GET /v1/feeds/:feedId/refresh`：查看该来源最近一次刷新任务；进行中可看到持有者与租约到期时间，结束后可看到共享结果。
 - `GET /v1/feeds/:feedId`：查看 feed 状态、文章统计和采集健康。
 - `GET /v1/feeds/:feedId/items`：分页读取文章；`visibility=visible|quiet` 可过滤状态。
 - `GET /v1/feeds/:feedId/runs`：读取近期页面快照接纳/拒绝记录。
@@ -35,5 +36,7 @@ npm run demo
 - `GET /health`：进程健康检查。
 
 抓取失败、页面异常和正常列表变更有不同记录。相同页面指纹重复提交时不会重复增加文章观察次数。短暂缺失需达到来源配置的连续快照阈值后才转为 `quiet`，重新出现时恢复 `visible`。人工审核状态独立于可见性状态，旧修订号会得到冲突响应而不会覆盖新审核决定。
+
+多个进程可以同时指向同一数据库文件共同服务。同一来源的刷新通过数据库中的租约任务跨进程协调：先到的进程成为持有者，其余调用方等待并共享同一次逻辑任务的结果；持有者卡住或退出后租约到期，由下一个刷新请求方接管并提升 fencing 序号。租约被接管后，旧持有者迟到提交的页面不会写入已被接替者更新的列表，只保留一条 `superseded` 抓取审计；真实发生过的网络请求（包括重复的外部请求）都保留在抓取审计中。
 
 仓库中的 HTML 样本为本地合成数据，仅用于离线演示和测试。实际部署前请配置准确来源域名，并遵守来源站点的使用条件。本服务不在后台隐式启动定时抓取；由操作者或外部调度器显式触发刷新。

@@ -56,8 +56,15 @@ async function routeRequest(request, response, archive) {
   }
   if (segments.length === 4 && segments[3] === "refresh" && request.method === "POST") {
     const result = await archive.refreshFeed(feedId);
-    const status = result.outcome === "accepted" ? result.capture.replay ? 200 : 202 : result.outcome === "not_modified" ? 200 : 422;
+    const status = result.outcome === "accepted" ? (result.capture.replay ? 200 : 202)
+      : result.outcome === "not_modified" ? 200
+      : result.outcome === "superseded" ? 409
+      : 422;
     return writeJson(response, status, result);
+  }
+  if (segments.length === 4 && segments[3] === "refresh" && request.method === "GET") {
+    const result = archive.refreshStatus(feedId);
+    return result ? writeJson(response, 200, result) : notFound(response);
   }
   if (segments.length === 3 && request.method === "GET") {
     const result = archive.feedStatus(feedId);

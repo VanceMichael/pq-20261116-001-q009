@@ -31,7 +31,10 @@ export class ImportService {
       capturedAt,
       feed
     });
-    this.database.exec("BEGIN IMMEDIATE");
+    // Join an ambient transaction when the caller (e.g. the refresh commit path)
+    // already holds one, so fencing, import and audit commit atomically.
+    const ownTransaction = !this.database.isTransaction;
+    if (ownTransaction) this.database.exec("BEGIN IMMEDIATE");
     try {
       const captureId = this.captures.create({
         feedId,
@@ -48,7 +51,7 @@ export class ImportService {
         this.articles.recordCapture(captureId, feed, normalized.records, capturedAt);
         this.feeds.markAccepted(feedId, capturedAt, normalized.records.length);
       }
-      this.database.exec("COMMIT");
+      if (ownTransaction) this.database.exec("COMMIT");
       return {
         captureId,
         feedId,
@@ -65,7 +68,7 @@ export class ImportService {
         stats: this.articles.stats(feedId)
       };
     } catch (error) {
-      this.database.exec("ROLLBACK");
+      if (ownTransaction && this.database.isTransaction) this.database.exec("ROLLBACK");
       throw error;
     }
   }

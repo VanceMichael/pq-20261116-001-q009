@@ -15,7 +15,7 @@ export class FetchRepository {
       SUM(CASE WHEN outcome='not_modified' THEN 1 ELSE 0 END) AS not_modified,
       MAX(CASE WHEN outcome='accepted' THEN finished_at END) AS last_success_at,
       MAX(finished_at) AS last_attempt_at
-      FROM fetch_attempts WHERE feed_id=? AND finished_at>=?`);
+      FROM fetch_attempts WHERE feed_id=? AND finished_at>=? AND outcome!='superseded'`);
   }
 
   record(attempt) {
